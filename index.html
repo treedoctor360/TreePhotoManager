@@ -181,7 +181,12 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding-top:16px}
     <p class="note">コピーして Excel やスプレッドシートの A1 に貼り付けると、4列に分かれます。番号札・参考・不要の写真は納品用ファイル名が空欄で、備考に理由が入ります。</p>
   </section>
 
-  <footer>© 2026– Koh Kitsukawa. All rights reserved.</footer>
+  <div class="banner" id="updateBar" hidden>
+    <span>新しい版があります。記録は消えません。</span>
+    <button class="btn primary" id="updateBtn" type="button">更新する</button>
+  </div>
+
+  <footer>© 2026– Koh Kitsukawa. All rights reserved.<br>版 <span id="verText"></span></footer>
 </div>
 
 <script>
@@ -197,6 +202,8 @@ const GROUPS = [
 const ORIENT = { full: '縦', weak: '横', work: '横' };
 const MAX_WEAK = 6;
 const KEY = 'photo-log-v1';
+// 版番号。GitHubに上げるたびに数字を変える（新しい版の検出に使う）
+const APP_VERSION = '2026-10-15.1';
 
 // ---------- 状態 ----------
 let S = load() || sample();
@@ -420,7 +427,25 @@ $('copyBtn').onclick = () => {
   try { navigator.clipboard.writeText(ta.value).then(ok, fallback); } catch (e) { fallback(); }
 };
 
-renderGroups(); render();
+// ---------- 新しい版の確認 ----------
+// GitHub Pages はページを最大10分ほどキャッシュし、Safariはさらに古い版を使い続けることがある。
+// そこで、公開中の index.html をキャッシュを使わずに取りに行き、版番号が違えば知らせる。
+async function checkUpdate() {
+  try {
+    const res = await fetch('./index.html', { cache: 'no-store' });
+    if (!res.ok) return;
+    const m = (await res.text()).match(/const APP_VERSION = '([^']+)'/);
+    if (m && m[1] !== APP_VERSION) $('updateBar').hidden = false;
+  } catch (e) { /* 電波がないときなどは何もしない */ }
+}
+$('updateBtn').onclick = async () => {
+  try { await fetch('./', { cache: 'reload' }); await fetch('./index.html', { cache: 'reload' }); } catch (e) { /* そのまま再読み込み */ }
+  location.reload();
+};
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+$('verText').textContent = APP_VERSION;
+
+renderGroups(); render(); checkUpdate();
 </script>
 
 </body>
