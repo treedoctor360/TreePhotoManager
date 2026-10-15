@@ -160,13 +160,13 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding-top:16px}
   </section>
 
   <section class="out">
-    <h2 style="font-size:15px;margin:6px 0">一覧の出力（CSV）</h2>
-    <textarea id="csv" readonly aria-label="CSVの内容"></textarea>
+    <h2 style="font-size:15px;margin:6px 0">一覧の出力</h2>
+    <textarea id="csv" readonly aria-label="一覧の内容"></textarea>
     <div class="bar">
       <button class="btn primary" id="copyBtn" type="button">コピー</button>
       <span class="note" id="copyMsg"></span>
     </div>
-    <p class="note">試作のため、ここではコピーして Excel に貼り付けます。本番ではファイルとして保存します。同じ木で同じ写真名が2枚以上あるときの名前の付け方（ここでは「(2)」）と、駐車時写真の名前は未確認です。</p>
+    <p class="note">コピーして Excel やスプレッドシートの A1 に貼り付けると、4列に分かれます。番号札・参考・不要の写真は納品用ファイル名が空欄で、備考に理由が入ります。</p>
   </section>
 
   <footer>© 2026– Koh Kitsukawa. All rights reserved.</footer>
@@ -316,11 +316,16 @@ function render() {
   const live = S.records.filter(r => !r.void).length;
   $('count').textContent = `${S.records.length}件（不要${S.records.length - live}件）`;
 
-  // CSV
-  const q = v => /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
-  const head = ['ファイル', '公園・路線', '樹木番号', '区分', '写真名', '向き', 'メモ', '納品用ファイル名', '不要', '記録時刻'];
-  const kindLabel = { tag: '番号札', full: '全景', weak: '弱点', work: '作業', park: '駐車時', ref: '参考' };
-  const lines = [head.join(',')].concat(S.records.map(r => [fileOf(r.no), r.park, r.tree, kindLabel[r.kind], r.name, ORIENT[r.kind] || '', r.memo, names.get(r.id), r.void ? '不要' : '', new Date(r.time).toLocaleString('ja-JP')].map(q).join(',')));
+  // 一覧（タブ区切り。Excel・スプレッドシートに貼ると列に分かれる）
+  // 列：ファイル／納品用ファイル名／公園・路線／備考（番号札・参考・不要など）
+  const clean = v => String(v || '').replace(/[\t\n]/g, ' ');
+  const lines = [['ファイル', '納品用ファイル名', '公園・路線', '備考'].join('\t')].concat(S.records.map(r => {
+    let note = '';
+    if (r.void) note = '不要';
+    else if (r.kind === 'tag') note = `番号札 ${r.tree}`;
+    else if (r.kind === 'ref') note = `参考 ${r.tree}` + (r.memo ? '：' + r.memo : '');
+    return [fileOf(r.no), names.get(r.id), r.park, note].map(clean).join('\t');
+  }));
   $('csv').value = lines.join('\n');
 }
 
