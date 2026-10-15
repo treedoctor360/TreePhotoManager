@@ -120,8 +120,6 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding-top:16px}
   <div class="edit" id="editBox" hidden>
     <label for="prefixIn" class="note">頭の文字</label>
     <input id="prefixIn" type="text" autocomplete="off">
-    <label for="digitsIn" class="note">桁数</label>
-    <select id="digitsIn"><option value="4">4桁</option><option value="5">5桁</option></select>
     <label for="noIn" class="note">番号</label>
     <input id="noIn" type="number" inputmode="numeric" min="1" max="99999">
     <button class="btn primary" id="saveNoBtn" type="button">決定</button>
@@ -216,7 +214,7 @@ function sample() {
 // ---------- 補助 ----------
 const $ = id => document.getElementById(id);
 const MAX_NO = 99999;
-const fileOf = (no) => S.prefix + String(no).padStart(S.digits || 4, '0');
+const fileOf = (no) => S.prefix + String(no).padStart(4, '0');
 const step = n => (n >= MAX_NO ? 1 : n + 1);          // 99999 の次は 1 に戻す
 const toHalf = s => String(s || '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ').trim();
 function yymmdd(ms) { const d = new Date(ms); return String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
@@ -344,14 +342,14 @@ $('retakeBtn').onclick = () => {
   S.next = step(S.next); flash(`${fileOf(last.no)} を不要にして、撮り直しを記録しました`, true); save(); render();
 };
 
-$('editNoBtn').onclick = () => { const b = $('editBox'); b.hidden = !b.hidden; $('prefixIn').value = S.prefix; $('digitsIn').value = String(S.digits || 4); $('noIn').value = S.next; };
+$('editNoBtn').onclick = () => { const b = $('editBox'); b.hidden = !b.hidden; $('prefixIn').value = S.prefix; $('noIn').value = S.next; };
 $('saveNoBtn').onclick = () => {
   const n = parseInt($('noIn').value, 10);
   if (!(n >= 1 && n <= MAX_NO)) { flash('番号は 1〜99999 で入力してください'); return; }
-  S.prefix = toHalf($('prefixIn').value) || 'DSC_'; S.digits = parseInt($('digitsIn').value, 10) || 4; S.next = n; $('editBox').hidden = true;
+  S.prefix = toHalf($('prefixIn').value) || 'DSC_'; S.next = n; $('editBox').hidden = true;
   flash('次の番号を ' + fileOf(n) + ' にしました', true); save(); render();
 };
-$('clearSample').onclick = () => { S = { prefix: S.prefix, digits: S.digits || 4, next: 1, park: '', tree: '', records: [], sample: false }; save(); render(); $('editNoBtn').click(); };
+$('clearSample').onclick = () => { S = { prefix: S.prefix, next: 1, park: '', tree: '', records: [], sample: false }; save(); render(); $('editNoBtn').click(); };
 
 $('copyBtn').onclick = () => {
   const ta = $('csv');
