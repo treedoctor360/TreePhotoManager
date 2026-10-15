@@ -45,6 +45,13 @@ button{cursor:pointer}
 .chip.new{background:var(--accent);color:var(--accent-ink);animation:pop .5s ease-out}
 @keyframes pop{0%{transform:scale(1.25)}100%{transform:scale(1)}}
 .shot.hit{outline:3px solid var(--accent);outline-offset:1px}
+.check{flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--weak-bg);color:var(--weak);border-radius:8px;padding:6px 10px;font-size:14px}
+.check span{flex:1;min-width:150px}
+.check b,.fix b{font-family:var(--f-num)}
+.row .no{background:none;border:none;padding:0;text-align:left;text-decoration:underline dotted;text-underline-offset:3px}
+.fix{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--sunk);border-radius:8px;padding:8px}
+.fix input{width:110px;font-family:var(--f-num);padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.fix .note{flex-basis:100%}
 .edit select{padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 .next .lab{font-size:12px;color:var(--muted);letter-spacing:.05em}
 .next .num{font-family:var(--f-num);font-size:30px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -116,6 +123,11 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding-top:16px}
     </div>
     <button class="btn" id="editNoBtn" type="button">番号を直す</button>
     <div class="taken" id="taken"></div>
+    <div class="check" id="checkBox" hidden>
+      <span id="checkText"></span>
+      <button class="btn" id="checkYes" type="button">はい</button>
+      <button class="btn danger" id="checkNo" type="button">違う</button>
+    </div>
   </div>
   <div class="edit" id="editBox" hidden>
     <label for="prefixIn" class="note">頭の文字</label>
@@ -189,7 +201,9 @@ const KEY = 'photo-log-v1';
 // ---------- 状態 ----------
 let S = load() || sample();
 let foldOpen = false;
-let justAdded = null;   // 直前に追加した記録（上の「この木」で強調する）
+let justAdded = null;
+let fixId = null;      // 番号を直そうとしている記録
+let checkId = null;    // 番号札の直後に確認する記录   // 直前に追加した記録（上の「この木」で強調する）
 
 function load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 保存できなくても動作は続ける */ } }
@@ -247,12 +261,47 @@ function record(item, memo = '', btn = null) {
     else flash('');
   } else flash('');
   justAdded = S.next + '-' + Date.now();
-  S.records.push({ id: justAdded, no: S.next, park: S.park.trim(), tree, name: item.name, kind: item.kind, memo, time: Date.now(), void: false });
+  S.records.push({ id: justAdded, no: S.next, park: S.park.trim(), tree, name: item.name, kind: item.kind, memo, time: Date.now(), void: false, reset: !!S.resetPending });
+  S.resetPending = false;
+  checkId = item.kind === 'tag' ? justAdded : null;
   S.next = step(S.next);
   save(); render();
   // 押したボタンを一瞬囲んで、押せたことを示す
   if (btn) { btn.classList.add('hit'); setTimeout(() => btn.classList.remove('hit'), 400); }
 }
+// ---------- 番号の一括修正 ----------
+// 撮影の順番は正しいので、ずれは「同じ数だけ」起きる。
+// 選んだ記録から後ろを、次に「番号を直した」地点の手前まで、同じ差だけずらす。
+const wrap = n => ((n - 1) % MAX_NO + MAX_NO) % MAX_NO + 1;
+function shiftFrom(id, correct) {
+  const i = S.records.findIndex(r => r.id === id);
+  if (i < 0) return 0;
+  const diff = correct - S.records[i].no;
+  let j = i, last = true;
+  for (; j < S.records.length; j++) {
+    if (j > i && S.records[j].reset) { last = false; break; }
+    S.records[j].no = wrap(S.records[j].no + diff);
+  }
+  if (last) S.next = wrap(S.next + diff);   // 最後まで動かしたら「次の番号」も合わせる
+  return j - i;
+}
+function fixBox(r) {
+  const box = document.createElement('div'); box.className = 'fix';
+  box.innerHTML = `<label for="fixIn">正しい番号</label><input id="fixIn" type="number" inputmode="numeric" min="1" max="99999" value="${r.no}">
+    <button type="button" class="btn primary">ずらす</button><button type="button" class="btn">やめる</button>
+    <span class="note">この記録から後ろを同じ差だけずらします（「番号を直す」で合わせ直した地点の手前まで）。</span>`;
+  const [ok, cancel] = box.querySelectorAll('button');
+  ok.onclick = () => {
+    const n = parseInt(box.querySelector('input').value, 10);
+    if (!(n >= 1 && n <= MAX_NO)) { flash('番号は 1〜99999 で入力してください'); return; }
+    const old = fileOf(r.no), cnt = shiftFrom(r.id, n);
+    fixId = null; checkId = null;
+    flash(`${old} 以降の${cnt}件を ${fileOf(n)} からに直しました`, true); save(); render();
+  };
+  cancel.onclick = () => { fixId = null; render(); };
+  return box;
+}
+
 function flash(t, ok) { const m = $('msg'); m.textContent = t; m.className = 'msg' + (ok ? ' ok' : ''); }
 
 // ---------- 画面 ----------
@@ -291,6 +340,9 @@ function render() {
     ? (mine.length ? `<span>この木：</span>` + mine.map(r => `<span class="chip${r.kind === 'weak' ? ' w' : ''}${r.id === justAdded ? ' new' : ''}">${esc(r.name)}${r.memo ? '：' + esc(r.memo) : ''}</span>`).join('') : '<span>この木はまだ記録がありません</span>')
     : '<span>樹木番号を入力してください</span>';
   justAdded = null;
+  const ck = checkId && S.records.find(r => r.id === checkId);
+  $('checkBox').hidden = !ck;
+  if (ck) $('checkText').innerHTML = `カメラの番号札の写真は <b>${esc(fileOf(ck.no))}</b> でしたか？`;
 
   // 直前の記録
   const last = S.records[S.records.length - 1];
@@ -307,11 +359,14 @@ function render() {
     const d = document.createElement('div'); d.className = 'row' + (r.void ? ' void' : '');
     const fn = names.get(r.id);
     const sub = r.void ? '不要' : (fn || (r.kind === 'tag' ? '区切り（納品しない）' : '参考（納品しない）'));
-    d.innerHTML = `<div class="no">${esc(fileOf(r.no).replace(S.prefix, ''))}</div>
+    d.innerHTML = `<button type="button" class="no" title="番号を直す">${esc(fileOf(r.no).replace(S.prefix, ''))}</button>
       <div class="main"><div class="nm">${esc(r.name)}${r.memo ? '：' + esc(r.memo) : ''}</div><div class="fn">${esc(sub)}・${hhmm(r.time)}</div></div>`;
     const t = document.createElement('button'); t.type = 'button'; t.className = 'btn tog'; t.textContent = r.void ? '戻す' : '不要';
     t.onclick = () => { r.void = !r.void; save(); render(); };
-    d.appendChild(t); rows.appendChild(d);
+    d.appendChild(t);
+    d.querySelector('.no').onclick = () => { fixId = fixId === r.id ? null : r.id; render(); };
+    if (fixId === r.id) d.appendChild(fixBox(r));
+    rows.appendChild(d);
   });
   const live = S.records.filter(r => !r.void).length;
   $('count').textContent = `${S.records.length}件（不要${S.records.length - live}件）`;
@@ -347,11 +402,13 @@ $('retakeBtn').onclick = () => {
   S.next = step(S.next); flash(`${fileOf(last.no)} を不要にして、撮り直しを記録しました`, true); save(); render();
 };
 
+$('checkYes').onclick = () => { checkId = null; render(); };
+$('checkNo').onclick = () => { fixId = checkId; checkId = null; render(); const el = $('fixIn'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.select(); } };
 $('editNoBtn').onclick = () => { const b = $('editBox'); b.hidden = !b.hidden; $('prefixIn').value = S.prefix; $('noIn').value = S.next; };
 $('saveNoBtn').onclick = () => {
   const n = parseInt($('noIn').value, 10);
   if (!(n >= 1 && n <= MAX_NO)) { flash('番号は 1〜99999 で入力してください'); return; }
-  S.prefix = toHalf($('prefixIn').value) || 'DSC_'; S.next = n; $('editBox').hidden = true;
+  S.prefix = toHalf($('prefixIn').value) || 'DSC_'; S.next = n; S.resetPending = true; $('editBox').hidden = true;
   flash('次の番号を ' + fileOf(n) + ' にしました', true); save(); render();
 };
 $('clearSample').onclick = () => { S = { prefix: S.prefix, next: 1, park: '', tree: '', records: [], sample: false }; save(); render(); $('editNoBtn').click(); };
