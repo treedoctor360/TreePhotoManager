@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* 最小限のリセット（余白・安全領域・hidden） */
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>写真撮影記録</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* レイアウト：スマホ1列。上に「次の番号」を固定、その下に木の入力・撮影ボタン・記録一覧・出力 */
+:root{
+  --bg:#EEF1EC; --surface:#FFFFFF; --sunk:#E3E8E1; --ink:#18231C; --muted:#56635A; --line:#C9D2C7;
+  --accent:#245A3F; --accent-ink:#FFFFFF; --weak:#8A5A12; --weak-bg:#F6ECD9; --ref:#3D4F7A; --ref-bg:#E4E9F4;
+  --danger:#A3322A; --danger-bg:#F8E3E0;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"BIZ UDGothic","Menlo","Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121814; --surface:#1B231D; --sunk:#232D26; --ink:#E6ECE5; --muted:#9AA79D; --line:#34413A;
+  --accent:#6FB98F; --accent-ink:#0F1A13; --weak:#E2B46A; --weak-bg:#33291A; --ref:#A9B9E6; --ref-bg:#232A3B;
+  --danger:#F08A80; --danger-bg:#3A1F1C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121814; --surface:#1B231D; --sunk:#232D26; --ink:#E6ECE5; --muted:#9AA79D; --line:#34413A;
+  --accent:#6FB98F; --accent-ink:#0F1A13; --weak:#E2B46A; --weak-bg:#33291A; --ref:#A9B9E6; --ref-bg:#232A3B;
+  --danger:#F08A80; --danger-bg:#3A1F1C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px;display:flex;flex-direction:column;gap:14px}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* 次の番号（固定） */
+.next{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.next .taken{flex-basis:100%;min-height:24px}
+.numline{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.curtree{font-family:var(--f-num);font-size:16px;font-weight:700;color:var(--accent)}
+.chip.new{background:var(--accent);color:var(--accent-ink);animation:pop .5s ease-out}
+@keyframes pop{0%{transform:scale(1.25)}100%{transform:scale(1)}}
+.shot.hit{outline:3px solid var(--accent);outline-offset:1px}
+.edit select{padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.next .lab{font-size:12px;color:var(--muted);letter-spacing:.05em}
+.next .num{font-family:var(--f-num);font-size:30px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.next .grow{flex:1;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;min-height:40px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.edit{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.edit input{width:90px;font-family:var(--f-num);padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+
+.banner{background:var(--ref-bg);color:var(--ref);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.banner span{flex:1;min-width:180px}
+
+/* 木・公園の入力 */
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.field input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:17px}
+.field input#tree{font-family:var(--f-num);font-weight:700;text-transform:uppercase}
+.taken{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--sunk);color:var(--ink)}
+.chip.w{background:var(--weak-bg);color:var(--weak)}
+.msg{font-size:13px;min-height:1.2em;color:var(--danger)}
+.msg.ok{color:var(--accent)}
+
+/* 撮影ボタン */
+.group h2{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em;margin:0 0 6px;display:flex;justify-content:space-between}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.shot{min-height:52px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:6px 8px;font-weight:700;font-size:15px;line-height:1.25;text-align:center;overflow-wrap:anywhere}
+.shot:active{transform:translateY(1px)}
+.shot.full{border-color:var(--accent);color:var(--accent)}
+.shot.weak{background:var(--weak-bg);border-color:transparent;color:var(--weak)}
+.shot.ref{background:var(--ref-bg);border-color:transparent;color:var(--ref)}
+.more{background:none;border:none;color:var(--accent);font-size:13px;padding:0}
+.refrow{display:flex;gap:8px}
+.refrow input{flex:1;min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.refrow .shot{flex:0 0 96px}
+
+/* 直前の操作 */
+.last{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;flex-wrap:wrap}
+.last .t{flex:1;min-width:150px;font-size:14px}
+.last .t b{font-family:var(--f-num)}
+
+/* 記録一覧 */
+.log h2{font-size:15px;margin:6px 0 6px;display:flex;justify-content:space-between;align-items:baseline}
+.log h2 small{font-weight:400;color:var(--muted);font-size:12px}
+.rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.row .no{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:14px}
+.row .main{min-width:0}
+.row .nm{font-weight:700}
+.row .fn{font-family:var(--f-num);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.row.void .no,.row.void .nm{text-decoration:line-through;color:var(--muted)}
+.row .tog{font-size:12px;padding:4px 8px;min-height:32px}
+.treehead{font-size:12px;color:var(--muted);padding:10px 0 2px;font-weight:700}
+
+.out textarea{width:100%;height:150px;font-family:var(--f-num);font-size:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:8px;color:var(--ink)}
+.out .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.note{font-size:12px;color:var(--muted)}
+footer{font-size:12px;color:var(--muted);text-align:center;padding-top:16px}
+@media (prefers-reduced-motion:reduce){.shot:active{transform:none}.chip.new{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="next" id="nextBar">
+    <div class="grow">
+      <div class="lab">次に撮るファイル</div>
+      <div class="numline"><span class="num" id="nextNum">DSC_0000</span><span class="curtree" id="curTree"></span></div>
+    </div>
+    <button class="btn" id="editNoBtn" type="button">番号を直す</button>
+    <div class="taken" id="taken"></div>
+  </div>
+  <div class="edit" id="editBox" hidden>
+    <label for="prefixIn" class="note">頭の文字</label>
+    <input id="prefixIn" type="text" autocomplete="off">
+    <label for="digitsIn" class="note">桁数</label>
+    <select id="digitsIn"><option value="4">4桁</option><option value="5">5桁</option></select>
+    <label for="noIn" class="note">番号</label>
+    <input id="noIn" type="number" inputmode="numeric" min="1" max="99999">
+    <button class="btn primary" id="saveNoBtn" type="button">決定</button>
+    <span class="note">カメラの液晶に出ている「次の番号」に合わせてください。</span>
+  </div>
+
+  <div class="banner" id="sampleBanner" hidden>
+    <span>いま表示しているのは<b>例のデータ</b>です。使い始めるときは消してください。</span>
+    <button class="btn" id="clearSample" type="button">例を消して始める</button>
+  </div>
+
+  <div class="fields">
+    <div class="field"><label for="park">公園・路線（次に変えるまで引き継ぐ）</label><input id="park" type="text" autocomplete="off" placeholder="例：〇〇公園"></div>
+    <div class="field"><label for="tree">樹木番号</label><input id="tree" type="text" autocomplete="off" placeholder="PD0144"></div>
+  </div>
+  <div class="msg" id="msg" role="status"></div>
+
+  <div class="last" id="lastBox" hidden>
+    <div class="t" id="lastText"></div>
+    <button class="btn" id="undoBtn" type="button">取り消し</button>
+    <button class="btn" id="retakeBtn" type="button">撮り直し</button>
+  </div>
+  <div class="note">取り消し：押し間違えた（撮っていない）とき。番号を戻します。<br>撮り直し：撮ったが失敗したとき。前の1枚を「不要」にして、同じ区分を次の番号で記録します。</div>
+
+  <div id="groups"></div>
+
+  <div class="group">
+    <h2><span>参考（納品しない）</span></h2>
+    <div class="refrow">
+      <input id="refMemo" type="text" autocomplete="off" placeholder="何の写真か（任意）">
+      <button class="shot ref" id="refBtn" type="button">参考</button>
+    </div>
+  </div>
+
+  <section class="log">
+    <h2>記録 <small id="count"></small></h2>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <section class="out">
+    <h2 style="font-size:15px;margin:6px 0">一覧の出力（CSV）</h2>
+    <textarea id="csv" readonly aria-label="CSVの内容"></textarea>
+    <div class="bar">
+      <button class="btn primary" id="copyBtn" type="button">コピー</button>
+      <span class="note" id="copyMsg"></span>
+    </div>
+    <p class="note">試作のため、ここではコピーして Excel に貼り付けます。本番ではファイルとして保存します。同じ木で同じ写真名が2枚以上あるときの名前の付け方（ここでは「(2)」）と、駐車時写真の名前は未確認です。</p>
+  </section>
+
+  <footer>© 2026– Koh Kitsukawa. All rights reserved.</footer>
+</div>
+
+<script>
+// ---------- 設定（写真の区分と名前。業務ごとに差し替える想定） ----------
+// kind：tag=番号札, full=全景(縦), weak=弱点(横), work=作業写真, park=駐車時, ref=参考
+const GROUPS = [
+  { title: '区切り', items: [{ name: '番号札', kind: 'tag' }] },
+  { title: '全景（縦）', items: ['全景', '全景・枯死', '全景・樹勢悪い', '全景・危険な傾斜'].map(n => ({ name: n, kind: 'full' })) },
+  { title: '弱点（横）', items: ['枯れ枝', '小さな腐朽', '開口空洞・腐朽', '不完全結合', '子実体'].map(n => ({ name: n, kind: 'weak' })) },
+  { title: 'その他の弱点（横）', fold: true, items: ['越境枝', 'ガードリングルート', '浮き根損傷', '支柱不要', '大枝切除痕の腐朽', '樹皮枯死欠損', '架線障害', 'クズ巻き付き', '枝の腐朽', '大枝付根の腐朽', 'ぶら下がり枝', '根の切断', 'ガードパイプ接触', 'ガードパイプ食い込み', '建築限界越え', '針金巻き込み', 'フラス', 'シロアリ', '舗装持ち上げ', '支柱食い込み', '踏圧防止板食い込み', '主幹枯れ'].map(n => ({ name: n, kind: 'weak' })) },
+  { title: '作業・駐車', items: [{ name: '樹木点検作業写真', kind: 'work' }, { name: '駐車時', kind: 'park' }] },
+];
+const ORIENT = { full: '縦', weak: '横', work: '横' };
+const MAX_WEAK = 6;
+const KEY = 'photo-log-v1';
+
+// ---------- 状態 ----------
+let S = load() || sample();
+let foldOpen = false;
+let justAdded = null;   // 直前に追加した記録（上の「この木」で強調する）
+
+function load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 保存できなくても動作は続ける */ } }
+
+// 例のデータ（初回表示用）
+function sample() {
+  const st = { prefix: 'DSC_', next: 1247, park: '〇〇公園', tree: 'PD0145', records: [], sample: true };
+  const t = Date.now() - 600000;
+  const add = (no, tree, name, kind, memo = '', v = false) => st.records.push({ id: no + '-' + Math.random(), no, park: '〇〇公園', tree, name, kind, memo, time: t + (no - 1238) * 40000, void: v });
+  add(1238, 'PD0144', '番号札', 'tag');
+  add(1239, 'PD0144', '全景', 'full');
+  add(1240, 'PD0144', '枯れ枝', 'weak', '', true);
+  add(1241, 'PD0144', '枯れ枝', 'weak');
+  add(1242, 'PD0144', '樹皮枯死欠損', 'weak');
+  add(1243, 'PD0144', '参考', 'ref', '隣の木との根の競合');
+  add(1244, 'PD0145', '番号札', 'tag');
+  add(1245, 'PD0145', '全景・樹勢悪い', 'full');
+  add(1246, 'PD0145', '樹木点検作業写真', 'work');
+  return st;
+}
+
+// ---------- 補助 ----------
+const $ = id => document.getElementById(id);
+const MAX_NO = 99999;
+const fileOf = (no) => S.prefix + String(no).padStart(S.digits || 4, '0');
+const step = n => (n >= MAX_NO ? 1 : n + 1);          // 99999 の次は 1 に戻す
+const toHalf = s => String(s || '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ').trim();
+function yymmdd(ms) { const d = new Date(ms); return String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
+function hhmm(ms) { const d = new Date(ms); return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// 納品用ファイル名（形式：{樹木番号} {写真名} {YYMMDD}）。番号札・参考・不要は空欄
+function deliverNames() {
+  const map = new Map(), seen = {};
+  for (const r of S.records) {
+    if (r.void || r.kind === 'tag' || r.kind === 'ref') { map.set(r.id, ''); continue; }
+    const head = r.kind === 'park' ? r.park : r.tree;
+    const base = `${head} ${r.name} ${yymmdd(r.time)}`;
+    seen[base] = (seen[base] || 0) + 1;
+    map.set(r.id, seen[base] > 1 ? `${base} (${seen[base]})` : base);
+  }
+  return map;
+}
+
+// ---------- 記録 ----------
+function record(item, memo = '', btn = null) {
+  const tree = toHalf(S.tree).toUpperCase();
+  if (item.kind === 'park' ? !S.park.trim() : (item.kind !== 'ref' && !tree)) {
+    flash(item.kind === 'park' ? '公園・路線を入力してください' : '樹木番号を入力してください');
+    return;
+  }
+  if (item.kind === 'weak') {
+    const n = S.records.filter(r => !r.void && r.tree === tree && r.kind === 'weak').length;
+    if (n >= MAX_WEAK) flash(`この木の弱点写真が${MAX_WEAK}枚を超えます（記録はしました）`);
+    else flash('');
+  } else flash('');
+  justAdded = S.next + '-' + Date.now();
+  S.records.push({ id: justAdded, no: S.next, park: S.park.trim(), tree, name: item.name, kind: item.kind, memo, time: Date.now(), void: false });
+  S.next = step(S.next);
+  save(); render();
+  // 押したボタンを一瞬囲んで、押せたことを示す
+  if (btn) { btn.classList.add('hit'); setTimeout(() => btn.classList.remove('hit'), 400); }
+}
+function flash(t, ok) { const m = $('msg'); m.textContent = t; m.className = 'msg' + (ok ? ' ok' : ''); }
+
+// ---------- 画面 ----------
+function renderGroups() {
+  const box = $('groups'); box.innerHTML = '';
+  GROUPS.forEach(g => {
+    const sec = document.createElement('div'); sec.className = 'group';
+    const h = document.createElement('h2'); h.innerHTML = `<span>${esc(g.title)}</span>`;
+    if (g.fold) { const b = document.createElement('button'); b.type = 'button'; b.className = 'more'; b.textContent = foldOpen ? 'たたむ' : `開く（${g.items.length}）`; b.onclick = () => { foldOpen = !foldOpen; renderGroups(); }; h.appendChild(b); }
+    sec.appendChild(h);
+    if (!g.fold || foldOpen) {
+      const grid = document.createElement('div'); grid.className = 'grid';
+      g.items.forEach(it => {
+        const b = document.createElement('button'); b.type = 'button';
+        b.className = 'shot ' + (it.kind === 'full' ? 'full' : it.kind === 'weak' ? 'weak' : '');
+        b.textContent = it.name; b.onclick = () => record(it, '', b);
+        grid.appendChild(b);
+      });
+      sec.appendChild(grid);
+    }
+    box.appendChild(sec);
+  });
+}
+
+function render() {
+  $('nextNum').textContent = fileOf(S.next);
+  $('sampleBanner').hidden = !S.sample;
+  if (document.activeElement !== $('park')) $('park').value = S.park;
+  if (document.activeElement !== $('tree')) $('tree').value = S.tree;
+
+  // この木で撮ったもの（撮り忘れの目安）
+  const tree = toHalf(S.tree).toUpperCase();
+  const mine = S.records.filter(r => !r.void && tree && r.tree === tree);
+  $('curTree').textContent = tree || '樹木番号なし';
+  $('taken').innerHTML = tree
+    ? (mine.length ? `<span>この木：</span>` + mine.map(r => `<span class="chip${r.kind === 'weak' ? ' w' : ''}${r.id === justAdded ? ' new' : ''}">${esc(r.name)}${r.memo ? '：' + esc(r.memo) : ''}</span>`).join('') : '<span>この木はまだ記録がありません</span>')
+    : '<span>樹木番号を入力してください</span>';
+  justAdded = null;
+
+  // 直前の記録
+  const last = S.records[S.records.length - 1];
+  $('lastBox').hidden = !last;
+  if (last) $('lastText').innerHTML = `直前：<b>${esc(fileOf(last.no))}</b> ${esc(last.tree || last.park)} ${esc(last.name)}${last.void ? '（不要）' : ''}`;
+
+  // 一覧（新しい順、木ごとに見出し）
+  const names = deliverNames();
+  const rows = $('rows'); rows.innerHTML = '';
+  let prevKey = null;
+  [...S.records].reverse().forEach(r => {
+    const key = r.kind === 'park' ? '駐車：' + r.park : (r.tree || '（樹木番号なし）');
+    if (key !== prevKey) { const h = document.createElement('div'); h.className = 'treehead'; h.textContent = key + (r.park && r.kind !== 'park' ? '　' + r.park : ''); rows.appendChild(h); prevKey = key; }
+    const d = document.createElement('div'); d.className = 'row' + (r.void ? ' void' : '');
+    const fn = names.get(r.id);
+    const sub = r.void ? '不要' : (fn || (r.kind === 'tag' ? '区切り（納品しない）' : '参考（納品しない）'));
+    d.innerHTML = `<div class="no">${esc(fileOf(r.no).replace(S.prefix, ''))}</div>
+      <div class="main"><div class="nm">${esc(r.name)}${r.memo ? '：' + esc(r.memo) : ''}</div><div class="fn">${esc(sub)}・${hhmm(r.time)}</div></div>`;
+    const t = document.createElement('button'); t.type = 'button'; t.className = 'btn tog'; t.textContent = r.void ? '戻す' : '不要';
+    t.onclick = () => { r.void = !r.void; save(); render(); };
+    d.appendChild(t); rows.appendChild(d);
+  });
+  const live = S.records.filter(r => !r.void).length;
+  $('count').textContent = `${S.records.length}件（不要${S.records.length - live}件）`;
+
+  // CSV
+  const q = v => /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
+  const head = ['ファイル', '公園・路線', '樹木番号', '区分', '写真名', '向き', 'メモ', '納品用ファイル名', '不要', '記録時刻'];
+  const kindLabel = { tag: '番号札', full: '全景', weak: '弱点', work: '作業', park: '駐車時', ref: '参考' };
+  const lines = [head.join(',')].concat(S.records.map(r => [fileOf(r.no), r.park, r.tree, kindLabel[r.kind], r.name, ORIENT[r.kind] || '', r.memo, names.get(r.id), r.void ? '不要' : '', new Date(r.time).toLocaleString('ja-JP')].map(q).join(',')));
+  $('csv').value = lines.join('\n');
+}
+
+// ---------- 操作 ----------
+$('park').addEventListener('input', e => { S.park = e.target.value; save(); render(); });
+$('tree').addEventListener('input', e => { S.tree = e.target.value; save(); render(); });
+$('tree').addEventListener('blur', e => { S.tree = toHalf(e.target.value).toUpperCase(); save(); render(); });
+$('refBtn').onclick = () => { record({ name: '参考', kind: 'ref' }, $('refMemo').value.trim(), $('refBtn')); $('refMemo').value = ''; };
+
+$('undoBtn').onclick = () => {
+  const last = S.records.pop(); if (!last) return;
+  S.next = last.no; flash(`${fileOf(last.no)} の記録を取り消しました`, true); save(); render();
+};
+$('retakeBtn').onclick = () => {
+  const last = S.records[S.records.length - 1]; if (!last) return;
+  last.void = true;
+  justAdded = S.next + '-' + Date.now();
+  S.records.push({ ...last, id: justAdded, no: S.next, time: Date.now(), void: false });
+  S.next = step(S.next); flash(`${fileOf(last.no)} を不要にして、撮り直しを記録しました`, true); save(); render();
+};
+
+$('editNoBtn').onclick = () => { const b = $('editBox'); b.hidden = !b.hidden; $('prefixIn').value = S.prefix; $('digitsIn').value = String(S.digits || 4); $('noIn').value = S.next; };
+$('saveNoBtn').onclick = () => {
+  const n = parseInt($('noIn').value, 10);
+  if (!(n >= 1 && n <= MAX_NO)) { flash('番号は 1〜99999 で入力してください'); return; }
+  S.prefix = toHalf($('prefixIn').value) || 'DSC_'; S.digits = parseInt($('digitsIn').value, 10) || 4; S.next = n; $('editBox').hidden = true;
+  flash('次の番号を ' + fileOf(n) + ' にしました', true); save(); render();
+};
+$('clearSample').onclick = () => { S = { prefix: S.prefix, digits: S.digits || 4, next: 1, park: '', tree: '', records: [], sample: false }; save(); render(); $('editNoBtn').click(); };
+
+$('copyBtn').onclick = () => {
+  const ta = $('csv');
+  const ok = () => $('copyMsg').textContent = 'コピーしました';
+  const fallback = () => { ta.focus(); ta.select(); $('copyMsg').textContent = '選択しました。長押しでコピーしてください'; };
+  try { navigator.clipboard.writeText(ta.value).then(ok, fallback); } catch (e) { fallback(); }
+};
+
+renderGroups(); render();
+</script>
+
+</body>
+</html>
